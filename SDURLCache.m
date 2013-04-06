@@ -631,6 +631,11 @@ static dispatch_queue_t get_disk_io_queue() {
     }
 }
 
+- (BOOL)shouldUseMemoryCache
+{
+    return self.memoryCapacity > 0;
+}
+
 #pragma mark SDURLCache
 
 + (NSString *)defaultCachePath {
@@ -663,7 +668,10 @@ static dispatch_queue_t get_disk_io_queue() {
         return;
     }
     
-    [super storeCachedResponse:cachedResponse forRequest:request];
+    if (self.shouldUseMemoryCache)
+    {
+        [super storeCachedResponse:cachedResponse forRequest:request];
+    }
     
     NSURLCacheStoragePolicy storagePolicy = cachedResponse.storagePolicy;
     if ((storagePolicy == NSURLCacheStorageAllowed || (storagePolicy == NSURLCacheStorageAllowedInMemoryOnly && _ignoreMemoryOnlyStoragePolicy))
@@ -724,7 +732,7 @@ static dispatch_queue_t get_disk_io_queue() {
     });
     
     // OPTI: Store the response to memory cache for potential future requests
-    if (response) {
+    if (response && self.shouldUseMemoryCache) {
         [super storeCachedResponse:response forRequest:request];
     }
     
