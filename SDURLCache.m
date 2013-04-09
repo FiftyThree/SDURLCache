@@ -308,7 +308,12 @@ inline void dispatch_async_afreentrant(dispatch_queue_t queue, dispatch_block_t 
 	dispatch_get_current_queue() == queue ? block() : dispatch_async(queue, block);
 }
 
-@interface SDURLCache ()
+@interface SDURLCache () {
+    dispatch_once_t _OnceToken_maintenanceTimer;
+
+    dispatch_once_t _OnceToken_createDiskCachePath;
+}
+
 @property (nonatomic, retain) NSString *diskCachePath;
 @property (nonatomic, retain) NSMutableDictionary *diskCacheInfo;
 - (void)periodicMaintenance;
@@ -359,8 +364,7 @@ static dispatch_queue_t get_disk_io_queue() {
 }
 
 - (dispatch_source_t)maintenanceTimer {
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
+    dispatch_once(&_OnceToken_maintenanceTimer, ^{
         dispatch_queue_t queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
         _maintenanceTimer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, queue);
         if (_maintenanceTimer) {
@@ -507,14 +511,18 @@ static dispatch_queue_t get_disk_io_queue() {
 }
 
 - (void)createDiskCachePath {
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
+    dispatch_once(&_OnceToken_createDiskCachePath, ^{
         NSFileManager *fileManager = [[NSFileManager alloc] init];
         if (![fileManager fileExistsAtPath:_diskCachePath]) {
+            NSError *error = nil;
             [fileManager createDirectoryAtPath:_diskCachePath
                    withIntermediateDirectories:YES
                                     attributes:nil
-                                         error:NULL];
+                                         error:&error];
+            if (error)
+            {
+                NSLog(@"SDURLCache createDiskCachePath error: %@", error);
+            }
         }
     });
 }
