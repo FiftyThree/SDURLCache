@@ -273,6 +273,35 @@ static NSDate *_parseHTTPDate(const char *buf, size_t bufLen) {
     return(date);
 }
 
+@interface UIBackgroundTaskIDWrapper : NSObject
+- (void)end;
+@property (atomic) UIBackgroundTaskIdentifier backgroundTaskIdentifier;
+@end
+
+@implementation UIBackgroundTaskIDWrapper
+
+- (id)init
+{
+    self = [super init];
+    if (self)
+    {
+        _backgroundTaskIdentifier = UIBackgroundTaskInvalid;
+    }
+    return self;
+}
+
+- (void)end
+{
+    @synchronized(self) {
+        if (self.backgroundTaskIdentifier != UIBackgroundTaskInvalid)
+        {
+            [[UIApplication sharedApplication] endBackgroundTask:self.backgroundTaskIdentifier];
+            self.backgroundTaskIdentifier = UIBackgroundTaskInvalid;
+        }
+    }
+}
+
+@end
 
 @implementation NSCachedURLResponse(NSCoder)
 
@@ -533,6 +562,12 @@ static dispatch_queue_t get_disk_io_queue() {
 
 - (void)saveCacheInfo {
     [self createDiskCachePath];
+    
+    UIBackgroundTaskIDWrapper *backgroundTaskIdWrapper = [[UIBackgroundTaskIDWrapper alloc] init];
+    backgroundTaskIdWrapper.backgroundTaskIdentifier = [[UIApplication sharedApplication] beginBackgroundTaskWithExpirationHandler:^{
+        [backgroundTaskIdWrapper end];
+    }];
+    
     dispatch_async_afreentrant(get_disk_cache_queue(), ^{
         // Previous versions of SDURLCache stored a diskUsage key that could go wrong, just get rid of it.
         [self.diskCacheInfo removeObjectForKey:@"diskUsage"];
@@ -542,6 +577,8 @@ static dispatch_queue_t get_disk_io_queue() {
         }
         
         _diskCacheInfoDirty = NO;
+        
+        [backgroundTaskIdWrapper end];
     });
 }
 
